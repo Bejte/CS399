@@ -189,28 +189,60 @@ int color_diff(const unsigned char a[3], const unsigned char b[3]) {
 // returns approximate angle of yellow road line
 // or UNKNOWN if no pixel of yellow line visible
 double process_camera_image(const unsigned char *image) {
-  int num_pixels = camera_height * camera_width;  // number of pixels in the image
-  const unsigned char REF[3] = {255, 255, 255};    // road yellow (BGR format)
-  int sumx = 0;                                   // summed x position of pixels
-  int pixel_count = 0;                            // yellow pixels count
+  int left_sum = 0, right_sum = 0;
+  int left_count = 0, right_count = 0;
 
-  const unsigned char *pixel = image;
-  int x;
-  for (x = 0; x < num_pixels; x++, pixel += 4) {
-    if (color_diff(pixel, REF) < 30) {
-      sumx += x % camera_width;
-      pixel_count++;  // count yellow pixels
+  int center = camera_width / 2;
+
+  for (int y = camera_height - 10; y < camera_height; y++) {
+    for (int x = 0; x < camera_width; x++) {
+      int index = (y * camera_width + x) * 4;
+      const unsigned char *pixel = &image[index];
+
+      int blue = pixel[0], green = pixel[1], red = pixel[2];
+      int intensity = (red + green + blue) / 3;
+      int max_rgb = fmax(fmax(red, green), blue);
+      int min_rgb = fmin(fmin(red, green), blue);
+      int saturation = max_rgb - min_rgb;
+
+      // Detect white or light gray with low color variance
+      if (intensity > 120 && saturation < 60) {
+        if (x < center) {
+          left_sum += (x % camera_width);
+          left_count++;
+        } else {
+          right_sum +=  (x % camera_width);
+          right_count++;
+        }
+      }
     }
   }
-  printf("sumx = %d", sumx);
-
+  
+  printf("L_sum = %d, R_sum = %d", left_sum, right_sum);
+  printf("L = %d, R = %d", left_count, right_count);
   // if no pixels was detected...
-  if (pixel_count == 0)
+  if (left_count == 0 && right_count == 0)
     return UNKNOWN;
+  int lane_center;
 
-  return ((double)sumx / pixel_count / camera_width - 0.5) * camera_fov;
+  if ( left_count == 0 ) {
+    lane_center = right_sum / right_count - (camera_width / 3);
+  }
+  
+  else if ( right_count == 0 ) {
+    lane_center = left_sum / left_count + (camera_width / 3);
+  }
+  
+  else {
+    lane_center = (left_sum + right_sum) / (left_count + right_count);
+  }
+ 
+  double normalized = (double)lane_center / camera_width;
+  double angle = (normalized - 0.5) * camera_fov;
+
+  return angle;
+      //printf("Pixel (%d, %d): R=%d G=%d B=%d | Intensity=%d Sat=%d\n", x, y, red, green, blue, intensity, saturation);
 }
-
 // filter angle of the yellow line (simple average)
 double filter_angle(double new_value) {
   static bool first_call = true;
