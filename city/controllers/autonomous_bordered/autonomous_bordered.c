@@ -63,6 +63,8 @@ double steering_angle = 0.0;
 int manual_steering = 0;
 bool autodrive = true;
 
+double base_cruise_speed = 50.0; 
+
 void print_help() {
   printf("You can drive this car!\n");
   printf("Select the 3D window and then use the cursor keys to:\n");
@@ -150,7 +152,7 @@ void check_keyboard() {
       change_manual_steer_angle(-1);
       break;
     case 'A':
-      set_speed(10.0);
+      set_speed(50.0);
       set_autodrive(true);
       break;
     default:
@@ -193,9 +195,12 @@ double process_camera_image(const unsigned char *image) {
   int left_count = 0, right_count = 0;
 
   int center = camera_width / 2;
+  
 
-  for (int y = camera_height - 10; y < camera_height; y++) {
+  for (int y = camera_height -10 ; y < camera_height; y++) {
     for (int x = 0; x < camera_width; x++) {
+      //printf("L_sum = %d, R_sum = %d", left_sum, right_sum);
+      //printf("L = %d, R = %d", left_count, right_count);
       int index = (y * camera_width + x) * 4;
       const unsigned char *pixel = &image[index];
 
@@ -218,27 +223,30 @@ double process_camera_image(const unsigned char *image) {
     }
   }
   
-  printf("L_sum = %d, R_sum = %d", left_sum, right_sum);
-  printf("L = %d, R = %d", left_count, right_count);
   // if no pixels was detected...
   if (left_count == 0 && right_count == 0)
     return UNKNOWN;
   int lane_center;
 
   if ( left_count == 0 ) {
-    lane_center = right_sum / right_count - (camera_width / 3);
+    lane_center = right_sum / right_count - ((int)(camera_width / 1.5));
   }
   
   else if ( right_count == 0 ) {
-    lane_center = left_sum / left_count + (camera_width / 3);
+    lane_center = left_sum / left_count + ((int)(camera_width / 1.5));
   }
   
   else {
     lane_center = (left_sum + right_sum) / (left_count + right_count);
   }
- 
-  double normalized = (double)lane_center / camera_width;
-  double angle = (normalized - 0.5) * camera_fov;
+  
+  int lane_left_bound = camera_width / 3;
+int lane_right_bound = 2 * camera_width / 3;
+
+  int region_width = lane_right_bound - lane_left_bound;
+double normalized = (double)(lane_center - lane_left_bound) / region_width;
+double angle = (normalized - 0.5) * (camera_fov * region_width / camera_width);
+
 
   return angle;
       //printf("Pixel (%d, %d): R=%d G=%d B=%d | Intensity=%d Sat=%d\n", x, y, red, green, blue, intensity, saturation);
@@ -279,7 +287,7 @@ double process_sick_data(const float *sick_data, double *obstacle_dist) {
   *obstacle_dist = 0.0;
   for (x = sick_width / 2 - HALF_AREA; x < sick_width / 2 + HALF_AREA; x++) {
     float range = sick_data[x];
-    if (range < 20.0) {
+    if (range < 10.0) {
       sumx += x;
       collision_count++;
       *obstacle_dist += range;
@@ -346,7 +354,17 @@ double applyPID(double yellow_line_angle) {
     integral += yellow_line_angle;
 
   oldValue = yellow_line_angle;
-  return KP * yellow_line_angle + KI * integral + KD * diff;
+  double base_pid = KP * yellow_line_angle + KI * integral + KD * diff;
+
+  // Compute dynamic steering scale based on speed
+  double max_steering_scale = 1.0;  // at 0 km/h
+  double min_steering_scale = 0.5;  // at high speed
+  double normalized_speed = fmin(speed / 100.0, 1.0);  // cap speed at 100 km/h
+  double steering_scale = max_steering_scale - (max_steering_scale - min_steering_scale) * normalized_speed;
+  
+  return base_pid * steering_scale;
+    
+  
 }
 
 int main(int argc, char **argv) {
@@ -429,6 +447,22 @@ int main(int argc, char **argv) {
       if (autodrive && has_camera) {
         double yellow_line_angle = filter_angle(process_camera_image(camera_image));
         
+        // Slow down on sharp turns
+        double abs_angle = fabs(yellow_line_angle);
+        if (yellow_line_angle != UNKNOWN) {
+          if (abs_angle > 0.25) {
+            // sharp turn — slow down more
+            set_speed(fmax(20.0, speed - 1.0));  // decelerate but not below 20
+          } else if (abs_angle > 0.1) {
+            // moderate curve
+            set_speed(fmax(35.0, speed - 0.5));
+          } else {
+            // straight road — restore cruising speed gradually
+            if (speed < base_cruise_speed)
+              set_speed(fmin(base_cruise_speed, speed + 0.5));  // restore slowly
+          }
+        }
+        
         static bool line_missing = false;
         if (yellow_line_angle == UNKNOWN) {
           if (!line_missing) {
@@ -439,8 +473,9 @@ int main(int argc, char **argv) {
             }
             line_missing = true;
             
-            set_autodrive(false);
-            set_speed(0);
+            set_speed(0.0);
+            set_steering_angle(0.0);
+            printf("Line lost. Autodrive off...");
           }
         } else {
           if (line_missing) {
@@ -455,9 +490,10 @@ int main(int argc, char **argv) {
         
         double obstacle_dist;
         double obstacle_angle;
-        if (enable_collision_avoidance)
+        if (enable_collision_avoidance){
           obstacle_angle = process_sick_data(sick_data, &obstacle_dist);
-        else {
+          
+        } else {
           obstacle_angle = UNKNOWN;
           obstacle_dist = 0;
         }
