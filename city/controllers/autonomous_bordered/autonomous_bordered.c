@@ -10,6 +10,15 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_gamecontroller.h>
+
 // to be used as array indices
 enum { X, Y, Z };
 
@@ -33,6 +42,10 @@ bool enable_collision_avoidance = false;
 bool enable_display = false;
 bool has_gps = false;
 bool has_camera = false;
+
+SDL_GameController *controller = NULL;
+int eeg_sock = -1;
+int webcam_sock = -1;
 
 // camera
 WbDeviceTag camera;
@@ -178,6 +191,78 @@ void check_keyboard() {
   }
 }
 
+void check_gamepad(SDL_GameController *controller) {
+  SDL_GameControllerUpdate();
+
+  if (!autodrive && controller) {
+    Sint16 steer = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_LEFTX);
+    double steer_normalized = steer / 32767.0;
+    set_steering_angle(steer_normalized * 0.5);
+
+    Sint16 accel = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_TRIGGERRIGHT);
+    if (accel > 1000) set_speed(fmin(speed + 2.0, 100.0));
+
+    Sint16 brake = SDL_GameControllerGetAxis(controller, SDL_CONTROLLER_AXIS_TRIGGERLEFT);
+    if (brake > 1000) set_speed(fmax(speed - 2.0, 0.0));
+
+    if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_A)) {
+      set_autodrive(true);
+      set_speed(base_cruise_speed);
+    }
+  }
+}
+
+void connect_to_eeg_server() {
+  struct sockaddr_in server_addr;
+
+  eeg_sock = socket(AF_INET, SOCK_STREAM, 0);
+  if (eeg_sock < 0) {
+    perror("socket");
+    return;
+  }
+
+  server_addr.sin_family = AF_INET;
+  server_addr.sin_port = htons(8888);
+  inet_pton(AF_INET, "127.0.0.1", &server_addr.sin_addr);
+
+  if (connect(eeg_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+    perror("connect");
+    close(eeg_sock);
+    eeg_sock = -1;
+  } else {
+    printf("Connected to EEG server\n");
+  }
+}
+
+void read_eeg(int *att, int *med) {
+  char buffer[64] = {0};
+  if (eeg_sock < 0) return;
+
+  int bytes = recv(eeg_sock, buffer, sizeof(buffer) - 1, MSG_DONTWAIT);
+  if (bytes > 0) {
+    sscanf(buffer, "%d,%d", att, med);
+  }
+}
+
+void connect_to_webcam_overlay() {
+  struct sockaddr_in addr;
+  webcam_sock = socket(AF_INET, SOCK_STREAM, 0);
+  if (webcam_sock < 0) return;
+
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(8890);
+  inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr);
+
+  printf("Connecting to webcam overlay...\n");
+  if (connect(webcam_sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+    perror("connect webcam");
+    close(webcam_sock);
+    webcam_sock = -1;
+    return;
+  }
+  printf("Webcam overlay connected.\n");
+}
+
 // compute rgb difference
 int color_diff(const unsigned char a[3], const unsigned char b[3]) {
   int i, diff = 0;
@@ -229,11 +314,11 @@ double process_camera_image(const unsigned char *image) {
   int lane_center;
 
   if ( left_count == 0 ) {
-    lane_center = right_sum / right_count - ((int)(camera_width / 1.5));
+    lane_center = right_sum / right_count - ((int)(camera_width / 1.2));
   }
   
   else if ( right_count == 0 ) {
-    lane_center = left_sum / left_count + ((int)(camera_width / 1.5));
+    lane_center = left_sum / left_count + ((int)(camera_width / 1.2));
   }
   
   else {
@@ -369,6 +454,8 @@ double applyPID(double yellow_line_angle) {
 
 int main(int argc, char **argv) {
   wbu_driver_init();
+  connect_to_eeg_server();
+  connect_to_webcam_overlay();
 
   // check if there is a SICK and a display
   int j = 0;
@@ -427,11 +514,41 @@ int main(int argc, char **argv) {
 
   // allow to switch to manual control
   wb_keyboard_enable(TIME_STEP);
+  
+  if (SDL_Init(SDL_INIT_GAMECONTROLLER) < 0) {
+    fprintf(stderr, "Could not initialize SDL: %s\n", SDL_GetError());
+    return 1;
+  }
+  
+  for (int i = 0; i < SDL_NumJoysticks(); ++i) {
+    if (SDL_IsGameController(i)) {
+      controller = SDL_GameControllerOpen(i);
+      if (controller) {
+        printf("G29 Steering Wheel connected.\n");
+        break;
+      }
+    }
+}
 
   // main loop
   while (wbu_driver_step() != -1) {
     // get user input
     check_keyboard();
+    check_gamepad(controller);
+
+    int attention = -1, meditation = -1;
+    read_eeg(&attention, &meditation);
+    if (attention >= 0) {
+      printf("EEG → Attention: %d, Meditation: %d\n", attention, meditation);
+    }
+
+    if (webcam_sock != -1) {
+      char buffer[64];
+      double sim_time = wb_robot_get_time();
+      snprintf(buffer, sizeof(buffer), "sim: %.2f\n", sim_time);
+      send(webcam_sock, buffer, strlen(buffer), 0);
+    }
+
     static int i = 0;
 
     // updates sensors only every TIME_STEP milliseconds
@@ -473,9 +590,10 @@ int main(int argc, char **argv) {
             }
             line_missing = true;
             
-            set_speed(0.0);
+            set_speed(10.0);
             set_steering_angle(0.0);
             printf("Line lost. Autodrive off...");
+            set_autodrive(false);
           }
         } else {
           if (line_missing) {
@@ -542,6 +660,10 @@ int main(int argc, char **argv) {
   }
 
   wbu_driver_cleanup();
+  
+  if (controller)
+    SDL_GameControllerClose(controller);
+  SDL_Quit();
 
   return 0;  // ignored
 }
