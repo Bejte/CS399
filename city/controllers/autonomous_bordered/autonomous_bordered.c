@@ -229,11 +229,11 @@ double process_camera_image(const unsigned char *image) {
   int lane_center;
 
   if ( left_count == 0 ) {
-    lane_center = right_sum / right_count - ((int)(camera_width / 1.5));
+    lane_center = right_sum / right_count - ((int)(camera_width / 1.2));
   }
   
   else if ( right_count == 0 ) {
-    lane_center = left_sum / left_count + ((int)(camera_width / 1.5));
+    lane_center = left_sum / left_count + ((int)(camera_width / 1.2));
   }
   
   else {
@@ -473,9 +473,10 @@ int main(int argc, char **argv) {
             }
             line_missing = true;
             
-            set_speed(0.0);
+            set_speed(10.0);
             set_steering_angle(0.0);
             printf("Line lost. Autodrive off...");
+            set_autodrive(false);
           }
         } else {
           if (line_missing) {
