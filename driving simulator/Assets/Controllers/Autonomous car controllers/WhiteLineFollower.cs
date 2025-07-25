@@ -17,6 +17,11 @@ public class WhiteLineFollower : MonoBehaviour
     private float lastError;
     private Rigidbody rb;
     public ObstacleTriggerZone triggerZone;
+    private bool recoveringFromObstacle = false;
+    private float recoveryTimer = 0f;
+    private float recoveryDuration = 1.5f; // seconds of gentle return
+    private float recoverySteer = 0f;
+
     
     void Start()
     {
@@ -34,10 +39,27 @@ public class WhiteLineFollower : MonoBehaviour
     {
         if (triggerZone.obstacleDetected)
         {
-            Debug.Log($"🛑 Steering away from obstacle with correction: {triggerZone.steerCorrection}");
-
+            Debug.Log($"Steering away from obstacle with correction: {triggerZone.steerCorrection}");
             transform.Rotate(0f, triggerZone.steerCorrection, 0f);
+
+            recoveringFromObstacle = true;
+            recoveryTimer = recoveryDuration;
+            recoverySteer = -triggerZone.steerCorrection * 0.5f; // steer slightly opposite after avoidance
+
             speed = Mathf.Max(speed - 2f, 5f);
+            return;
+        }
+        else if (recoveringFromObstacle)
+        {
+            recoveryTimer -= Time.fixedDeltaTime;
+
+            transform.Rotate(0f, recoverySteer, 0f);
+
+            Debug.Log($"↩Recovering lane... ({recoveryTimer:F2}s left)");
+
+            if (recoveryTimer <= 0f)
+                recoveringFromObstacle = false;
+
             return;
         }
 
@@ -136,13 +158,32 @@ public class WhiteLineFollower : MonoBehaviour
             yield break;
         }
 
+        float leftAvg = leftCount > 0 ? (float)leftSum / leftCount : -1f;
+        float rightAvg = rightCount > 0 ? (float)rightSum / rightCount : -1f;
+
         float laneCenter;
-        if (leftCount == 0)
-            laneCenter = rightSum / (float)rightCount - width/3;
-        else if (rightCount == 0)
-            laneCenter = leftSum / (float)leftCount + width/3;
+        if (leftAvg < 0 && rightAvg < 0)
+        {
+            Debug.Log("⚠️ No white line detected");
+            yield break;
+        }
+        else if (leftAvg < 0)
+        {
+            laneCenter = rightAvg - width / 3f;
+        }
+        else if (rightAvg < 0)
+        {
+            laneCenter = leftAvg + width / 3f;
+        }
         else
-            laneCenter = (leftSum + rightSum) / (float)(leftCount + rightCount);
+        {
+            // Boost dashed (left) line's influence
+            float leftWeight = 1.2f;  // more weight for dashed line
+            float rightWeight = 1.0f;
+
+            laneCenter = (leftAvg * leftWeight + rightAvg * rightWeight) / (leftWeight + rightWeight);
+        }
+
 
         float error = (laneCenter - centerX) / centerX; // -1 to 1
         float steer = ApplyPID(error);
