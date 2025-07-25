@@ -12,7 +12,7 @@ public class WhiteLineFollower : MonoBehaviour
     private float steeringAngle;
     public float Kp = 0.25f, Ki = 0.006f, Kd = 2f;
 
-    public float speed = 5f;
+    public float speed = 15f;
     private float integral;
     private float lastError;
     private Rigidbody rb;
@@ -44,7 +44,11 @@ public class WhiteLineFollower : MonoBehaviour
         if (isAutodrive)
         {
             StartCoroutine(ProcessCameraImage());
-            rb.linearVelocity = transform.forward * speed;
+            if (!triggerZone.obstacleDetected)
+                speed = Mathf.Min(speed + 0.5f, 20f);
+            else
+                speed = 15f;    
+                rb.linearVelocity = transform.forward * speed;
         }
         else
         {
@@ -134,9 +138,9 @@ public class WhiteLineFollower : MonoBehaviour
 
         float laneCenter;
         if (leftCount == 0)
-            laneCenter = rightSum / (float)rightCount - width / 4f;
+            laneCenter = rightSum / (float)rightCount - width/3;
         else if (rightCount == 0)
-            laneCenter = leftSum / (float)leftCount + width / 4f;
+            laneCenter = leftSum / (float)leftCount + width/3;
         else
             laneCenter = (leftSum + rightSum) / (float)(leftCount + rightCount);
 

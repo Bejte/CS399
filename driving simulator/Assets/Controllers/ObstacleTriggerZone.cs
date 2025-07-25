@@ -7,7 +7,6 @@ public class ObstacleTriggerZone : MonoBehaviour
 
     private void OnTriggerStay(Collider other)
     {
-        Debug.Log($"Trigger Stay: {other.tag}");
         if (other.CompareTag("Obstacle"))
         {
             obstacleDetected = true;
