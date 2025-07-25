@@ -1,79 +1,103 @@
 using UnityEngine;
+using UnityEngine.UI;
+using System.Collections;
 
-public class AutonomousCarController : MonoBehaviour
+public class AutonomousCarScreenshotController : MonoBehaviour
 {
+    [Header("Wheel Colliders")]
     public WheelCollider frontLeft, frontRight, rearLeft, rearRight;
     public Transform frontLeftTransform, frontRightTransform, rearLeftTransform, rearRightTransform;
 
+    [Header("Camera and UI")]
     public Camera carCamera;
-    public float maxSpeed = 1500f;
-    public float baseSpeed = 1000f;
-    public float maxSteering = 30f;
+    public RawImage debugRawImage;
 
-    private RenderTexture camRT;
-    private Texture2D camTexture;
+    [Header("Speed and Steering")]
+    public float maxSteeringAngle = 30f;
+    public float baseTorque = 800f;
+    public float maxTorque = 1200f;
 
-    // PID control parameters
-    float prevError = 0f;
-    float integral = 0f;
-    const float KP = 0.25f, KI = 0.006f, KD = 2f;
+    [Header("PID Settings")]
+    public float KP = 0.4f, KI = 0.0f, KD = 1.5f;
+
+    private float previousError = 0f;
+    private float integral = 0f;
 
     void Start()
     {
-        camRT = new RenderTexture(128, 128, 16);
-        if (!camRT.IsCreated())
+        // Position camera if needed
+        if (carCamera != null)
         {
-            Debug.Log("🛠 camRT not created, calling Create()");
-            camRT.Create();
+            carCamera.transform.localPosition = new Vector3(0, 2f, 0f);
+            carCamera.transform.localEulerAngles = new Vector3(30f, 0f, 0f);
         }
-        carCamera.targetTexture = camRT;
-        Debug.Log(carCamera.targetTexture != null ? "✅ Camera targetTexture assigned successfully!" : "❌ Camera targetTexture is null!");
-        if (carCamera.targetTexture == null)
-            Debug.LogError("❌ Camera targetTexture is STILL null after assignment!");
-        camTexture = new Texture2D(128, 128, TextureFormat.RGB24, false);
-        GameObject whiteCube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        whiteCube.transform.position = carCamera.transform.position + carCamera.transform.forward * 30f;
-        whiteCube.transform.localScale = Vector3.one * 0.5f;
-        whiteCube.GetComponent<Renderer>().material.color = Color.white;
     }
 
     void FixedUpdate()
     {
-        StartCoroutine(CaptureAndProcessCamera());
+        StartCoroutine(CaptureAndDrive());
     }
 
-    private System.Collections.IEnumerator CaptureAndProcessCamera()
+    IEnumerator CaptureAndDrive()
     {
-
-        if (carCamera.targetTexture == null)
-        {
-            Debug.LogError("❌ carCamera.targetTexture is null at runtime! Something reset it?");
-            yield break;
-        }
-        
         yield return new WaitForEndOfFrame();
 
-        RenderTexture.active = camRT;
-        carCamera.Render();
-        camTexture.ReadPixels(new Rect(0, 0, camRT.width, camRT.height), 0, 0);
-        camTexture.Apply();
-        RenderTexture.active = null;
-
-        float laneAngle = ProcessCameraImage();
-
-        if (float.IsNaN(laneAngle))
+        Texture2D screenshot = ScreenCapture.CaptureScreenshotAsTexture();
+        if (screenshot == null)
         {
-            Debug.LogWarning("❌ Lane not detected — camera sees nothing usable.");
+            Debug.LogError("❌ Screenshot failed.");
             yield break;
         }
 
-        float steering = ApplyPID(laneAngle);
-        float torque = ComputeSpeed(laneAngle);
 
-        Debug.Log($"✅ LaneAngle: {laneAngle:F3}, Steering: {steering:F3}, Torque: {torque:F1}");
+        if (debugRawImage != null)
+            debugRawImage.texture = screenshot;
 
-        frontLeft.steerAngle = steering * maxSteering;
-        frontRight.steerAngle = steering * maxSteering;
+        int width = screenshot.width;
+        int height = screenshot.height;
+
+        int leftX = -1;
+        int rightX = -1;
+
+        Color testPixel = screenshot.GetPixel(screenshot.width / 2, 5); // near bottom
+Debug.Log($"Pixel: R:{testPixel.r:F2}, G:{testPixel.g:F2}, B:{testPixel.b:F2}");
+
+
+       for (int y = 0; y < 10; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                Color pixel = screenshot.GetPixel(x, y);
+
+                // Strict white detection using RGB thresholds
+                if (pixel.r > 0.9f && pixel.g > 0.9f && pixel.b > 0.9f)
+                {
+                    if (leftX == -1 || x < leftX)
+                        leftX = x;
+
+                    if (rightX == -1 || x > rightX)
+                        rightX = x;
+                }
+            }
+        }
+
+        if (leftX == -1 || rightX == -1 || leftX == rightX)
+        {
+            Debug.LogWarning("❌ Could not detect both left and right white lane lines.");
+            yield break;
+        }
+
+        // Midpoint between white lanes
+        float laneCenterX = (leftX + rightX) / 2f;
+        float screenCenterX = width / 2f;
+        float centerError = (laneCenterX - screenCenterX) / screenCenterX;
+
+        float steeringInput = ApplyPID(centerError);
+        float torque = ComputeTorque(centerError);
+
+        // Apply to wheels
+        frontLeft.steerAngle = steeringInput * maxSteeringAngle;
+        frontRight.steerAngle = steeringInput * maxSteeringAngle;
 
         rearLeft.motorTorque = torque;
         rearRight.motorTorque = torque;
@@ -86,80 +110,25 @@ public class AutonomousCarController : MonoBehaviour
         UpdateWheelPose(rearLeft, rearLeftTransform);
         UpdateWheelPose(rearRight, rearRightTransform);
 
-        Rigidbody rb = GetComponent<Rigidbody>();
-        if (rb != null)
-        {
-            Debug.Log($"Velocity: {rb.linearVelocity.magnitude:F2} m/s");
-        }
+        Debug.Log($"🧠 Steering: {steeringInput:F2}, Torque: {torque:F0}, Error: {centerError:F2} | LeftX: {leftX}, RightX: {rightX}");
     }
 
-    float ProcessCameraImage()
-    {
-        Color[] pixels = camTexture.GetPixels();
 
-        int width = camTexture.width;
-        int height = camTexture.height;
-
-        // Center pixel debug
-        Color center = camTexture.GetPixel(width / 2, height - 5);
-        Color left = camTexture.GetPixel(5, height - 5);
-        Color right = camTexture.GetPixel(width - 5, height - 5);
-        Debug.Log($"🎯 Pixels — Left: ({left.r:F2},{left.g:F2},{left.b:F2}) | Center: ({center.r:F2},{center.g:F2},{center.b:F2}) | Right: ({right.r:F2},{right.g:F2},{right.b:F2})");
-
-        // White pixel debug
-        int whitePixelCount = 0;
-        foreach (Color pixel in pixels)
-        {
-            if (pixel.r > 0.9f && pixel.g > 0.9f && pixel.b > 0.9f)
-                whitePixelCount++;
-        }
-        float whiteRatio = (float)whitePixelCount / pixels.Length * 100f;
-        Debug.Log($"🟦 White pixels: {whitePixelCount} ({whiteRatio:F2}%)");
-
-        // Scan bottom row for dark road pixels
-        int darkSum = 0, darkCount = 0;
-        for (int y = height - 10; y < height; y++)
-        {
-            for (int x = 0; x < width; x++)
-            {
-                Color pixel = pixels[y * width + x];
-                float intensity = (pixel.r + pixel.g + pixel.b) / 3f;
-                if (intensity < 0.3f)
-                {
-                    darkSum += x;
-                    darkCount++;
-                }
-            }
-        }
-
-        if (darkCount == 0)
-        {
-            Debug.LogWarning("❌ No dark road pixels detected in bottom scan.");
-            return float.NaN;
-        }
-
-        float avgX = (float)darkSum / darkCount;
-        float centerX = width / 2f;
-        float normalized = (avgX - centerX) / centerX; // -1 to +1
-        return normalized;
-    }
 
     float ApplyPID(float error)
     {
-        float diff = error - prevError;
+        float diff = error - previousError;
         integral += error;
-        prevError = error;
-
-        float pid = KP * error + KI * integral + KD * diff;
-        return Mathf.Clamp(pid, -1f, 1f);
+        previousError = error;
+        float output = KP * error + KI * integral + KD * diff;
+        return Mathf.Clamp(output, -1f, 1f);
     }
 
-    float ComputeSpeed(float angle)
+    float ComputeTorque(float error)
     {
-        float abs = Mathf.Abs(angle);
-        if (abs > 0.25f) return Mathf.Max(400f, baseSpeed - 600f);
-        if (abs > 0.1f) return Mathf.Max(600f, baseSpeed - 300f);
-        return Mathf.Min(baseSpeed + 300f, maxSpeed);
+        float abs = Mathf.Abs(error);
+        if (abs > 0.3f) return Mathf.Max(300f, baseTorque - 400f);
+        return Mathf.Min(baseTorque + 200f, maxTorque);
     }
 
     void UpdateWheelPose(WheelCollider col, Transform trans)

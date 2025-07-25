@@ -6,12 +6,14 @@ using UnityEngine.UI;
 public class LineFollowerPID : MonoBehaviour
 {
     public Camera carCamera;
+    public RawImage rawImage;
     public RenderTexture camRT;
     public RawImage debugImageUI;
     private Texture2D debugTex;
     public float Kp = 0.5f, Ki = 0.0f, Kd = 0.1f;
 
     private Texture2D tex;
+    
     private float integral;
     private float lastError;
 
@@ -21,20 +23,27 @@ public class LineFollowerPID : MonoBehaviour
     void Start()
     {
         tex = new Texture2D(camRT.width, camRT.height, TextureFormat.RGB24, false);
+        debugTex = new Texture2D(camRT.width, camRT.height, TextureFormat.RGB24, false);
+
         if (!camRT.IsCreated())
         {
-            Debug.LogWarning("RenderTexture not created. Creating now.");
             camRT.Create();
         }
-        debugTex = new Texture2D(camRT.width, camRT.height, TextureFormat.RGB24, false);
+
+        // ✅ Set the targetTexture immediately
+        carCamera.targetTexture = camRT;
+
+        // ✅ Assign the texture to UI (camera preview)
+        if (rawImage != null)
+            rawImage.texture = camRT;
+
         if (debugImageUI != null)
             debugImageUI.texture = debugTex;
     }
 
+
     void FixedUpdate()
     {
-        // Make sure the camera renders into camRT
-        carCamera.targetTexture = camRT;
 
         // Force the camera to render
         carCamera.Render();
@@ -44,6 +53,7 @@ public class LineFollowerPID : MonoBehaviour
         tex.ReadPixels(new Rect(0, 0, camRT.width, camRT.height), 0, 0);
         tex.Apply();
         RenderTexture.active = null;
+        
 
         int testX = tex.width / 4;      // somewhere on the left lane
         int testY = tex.height / 6;     // low row, near car
@@ -99,6 +109,8 @@ public class LineFollowerPID : MonoBehaviour
                 {
                     debugPixels[index] = Color.black;
                 }
+                //Debug.Log($"Pixel color: R: {pixel.r:F2}, G: {pixel.g:F2}, B: {pixel.b:F2}");
+
             }
         }
 
@@ -131,6 +143,7 @@ public class LineFollowerPID : MonoBehaviour
                         leftEdge = x;
                     rightEdge = x;
                 }
+
             }
 
             if (leftEdge != -1 && rightEdge != -1)
