@@ -19,7 +19,7 @@ public class WhiteLineFollower : MonoBehaviour
     public ObstacleTriggerZone triggerZone;
     private bool recoveringFromObstacle = false;
     private float recoveryTimer = 0f;
-    private float recoveryDuration = 1.5f; // seconds of gentle return
+    private float recoveryDuration = 1f; // seconds of gentle return
     private float recoverySteer = 0f;
 
     
