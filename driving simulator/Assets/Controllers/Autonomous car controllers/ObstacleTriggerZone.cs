@@ -34,7 +34,7 @@ public class ObstacleTriggerZone : MonoBehaviour
 
             // If very close to center, bias left
             if (Mathf.Abs(toObstacle.x) < 0.2f)
-                direction = -1f;  // 👈 bias: always steer left
+                direction = 1f; 
             else
                 direction = Mathf.Sign(toObstacle.x);
 
