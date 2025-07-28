@@ -31,13 +31,6 @@ public class G29Debugger : MonoBehaviour
                 Debug.Log($"Axis \"{a}\": {v:F2}");
         }
 
-        // Which joysticks Unity sees
-        var names = Input.GetJoystickNames();
-        if (names != null && names.Length > 0)
-        {
-            for (int i = 0; i < names.Length; i++)
-                if (!string.IsNullOrEmpty(names[i]))
-                    Debug.Log($"Joystick {i + 1}: {names[i]}");
-        }
+        // Which joysticks Unity se
     }
 }

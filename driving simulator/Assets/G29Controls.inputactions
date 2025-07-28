@@ -38,7 +38,7 @@
                 {
                     "name": "",
                     "id": "b955fc49-3a6f-475c-ab62-86525cf37cf4",
-                    "path": "",
+                    "path": "<HID::Logitech G29 Driving Force Racing Wheel>/stick/x",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
@@ -49,8 +49,8 @@
                 {
                     "name": "",
                     "id": "75d4da36-3890-4c6e-bbd1-6a7428467783",
-                    "path": "",
-                    "interactions": "",
+                    "path": "<HID::Logitech G29 Driving Force Racing Wheel>/z",
+                    "interactions": "Hold",
                     "processors": "",
                     "groups": "",
                     "action": "Throttle",
@@ -60,7 +60,7 @@
                 {
                     "name": "",
                     "id": "8f44ccc0-cea4-4808-a4e0-8e7adfd8d3df",
-                    "path": "",
+                    "path": "<HID::Logitech G29 Driving Force Racing Wheel>/rz",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
