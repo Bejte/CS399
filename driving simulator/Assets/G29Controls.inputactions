@@ -32,6 +32,15 @@
                     "processors": "",
                     "interactions": "",
                     "initialStateCheck": true
+                },
+                {
+                    "name": "ToggleAD",
+                    "type": "Button",
+                    "id": "ea11fcaf-db72-4d05-afde-81551533af65",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
                 }
             ],
             "bindings": [
@@ -49,7 +58,7 @@
                 {
                     "name": "",
                     "id": "75d4da36-3890-4c6e-bbd1-6a7428467783",
-                    "path": "<HID::Logitech G29 Driving Force Racing Wheel>/z",
+                    "path": "<HID::Logitech G29 Driving Force Racing Wheel>/rz",
                     "interactions": "Hold",
                     "processors": "",
                     "groups": "",
@@ -60,11 +69,22 @@
                 {
                     "name": "",
                     "id": "8f44ccc0-cea4-4808-a4e0-8e7adfd8d3df",
-                    "path": "<HID::Logitech G29 Driving Force Racing Wheel>/rz",
+                    "path": "<HID::Logitech G29 Driving Force Racing Wheel>/z",
                     "interactions": "",
                     "processors": "",
                     "groups": "",
                     "action": "Brake",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "e3785021-1095-412e-8221-8a2c1de05853",
+                    "path": "<HID::Logitech G29 Driving Force Racing Wheel>/button2",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "ToggleAD",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }

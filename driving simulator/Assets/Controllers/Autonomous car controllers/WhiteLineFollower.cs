@@ -39,7 +39,7 @@ public class WhiteLineFollower : MonoBehaviour
     {
         // wire up input actions
         var driving = controls.FindActionMap("Driving", throwIfNotFound: true);
-        steeringAction     = driving.FindAction("Steering",  throwIfNotFound: true);
+        steeringAction     = driving.FindAction("Steer",  throwIfNotFound: true);
         throttleAction     = driving.FindAction("Throttle",  throwIfNotFound: true);
         brakeAction        = driving.FindAction("Brake",     throwIfNotFound: true);
         toggleAutoDriveAction = driving.FindAction("ToggleAD", throwIfNotFound: true); // optional

@@ -732,11 +732,16 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 886643828}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 756179fae20fe43469517413c30a6018, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  controls: {fileID: -944628639613478452, guid: c9ff64fbb70e246e199c7c39cc9e9962, type: 3}
+  maxManualSpeed: 50
+  accelPerSec: 40
+  brakeDecelPerSec: 60
+  maxSteerPerFixedStep: 0.5
   carCamera: {fileID: 51194894}
   Kp: 0.6
   Ki: 0
@@ -750,7 +755,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 886643828}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c4ab35e63fa744f5b925f83abda13cfc, type: 3}
   m_Name: 
