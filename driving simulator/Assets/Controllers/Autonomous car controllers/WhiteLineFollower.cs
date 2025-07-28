@@ -1,11 +1,24 @@
 using UnityEngine;
 using System.Collections;
+using UnityEngine.InputSystem; // <<< NEW
 
 public class WhiteLineFollower : MonoBehaviour
 {
-    private bool isAutodrive = true;
-    private float manualSteering = 0f;
+    // ------------ G29 / Input System ------------
+    [Header("Input System")]
+    public InputActionAsset controls;                       // drag your .inputactions here
+    private InputAction steeringAction, throttleAction, brakeAction, toggleAutoDriveAction;
+
+    [Header("Manual (G29) driving params")]
+    public float maxManualSpeed = 50f;
+    public float accelPerSec = 40f;
+    public float brakeDecelPerSec = 60f;
+    public float maxSteerPerFixedStep = 0.5f;               // how much you rotate per FixedUpdate for |steer| = 1
     private float manualSpeed = 0f;
+    private float manualSteering = 0f;
+
+    // ------------ Auto drive (your original fields) ------------
+    private bool isAutodrive = true;
 
     public Camera carCamera;
     private Texture2D tex;
@@ -22,7 +35,18 @@ public class WhiteLineFollower : MonoBehaviour
     private float recoveryDuration = 1.2f; // seconds of gentle return
     private float recoverySteer = 0f;
 
-    
+    void Awake()
+    {
+        // wire up input actions
+        var driving = controls.FindActionMap("Driving", throwIfNotFound: true);
+        steeringAction     = driving.FindAction("Steering",  throwIfNotFound: true);
+        throttleAction     = driving.FindAction("Throttle",  throwIfNotFound: true);
+        brakeAction        = driving.FindAction("Brake",     throwIfNotFound: true);
+        toggleAutoDriveAction = driving.FindAction("ToggleAD", throwIfNotFound: true); // optional
+
+        driving.Enable();
+    }
+
     void Start()
     {
         rb = GetComponent<Rigidbody>();
@@ -37,79 +61,87 @@ public class WhiteLineFollower : MonoBehaviour
 
     void FixedUpdate()
     {
+        // Optional: toggle auto/manual from the wheel button
+        if (toggleAutoDriveAction != null && toggleAutoDriveAction.triggered)
+        {
+            isAutodrive = !isAutodrive;
+            Debug.Log(isAutodrive ? "Switched to Auto-drive" : "Switched to Manual-drive (G29)");
+        }
+
         if (isAutodrive)
         {
             if (triggerZone.obstacleDetected)
-        {
-            Debug.Log($"Steering away from obstacle with correction: {triggerZone.steerCorrection}");
-            transform.Rotate(0f, triggerZone.steerCorrection, 0f);
+            {
+                Debug.Log($"Steering away from obstacle with correction: {triggerZone.steerCorrection}");
+                transform.Rotate(0f, triggerZone.steerCorrection, 0f);
 
-            recoveringFromObstacle = true;
-            recoveryTimer = recoveryDuration;
-            recoverySteer = -triggerZone.steerCorrection * 0.5f; // steer slightly opposite after avoidance
+                recoveringFromObstacle = true;
+                recoveryTimer = recoveryDuration;
+                recoverySteer = -triggerZone.steerCorrection * 0.5f; // steer slightly opposite after avoidance
 
-            speed = Mathf.Max(speed - 2f, 5f);
-            return;
-        }
-        else if (recoveringFromObstacle)
-        {
-            recoveryTimer -= Time.fixedDeltaTime;
+                speed = Mathf.Max(speed - 2f, 5f);
+                return;
+            }
+            else if (recoveringFromObstacle)
+            {
+                recoveryTimer -= Time.fixedDeltaTime;
 
-            transform.Rotate(0f, recoverySteer, 0f);
+                transform.Rotate(0f, recoverySteer, 0f);
 
-            Debug.Log($"↩Recovering lane... ({recoveryTimer:F2}s left)");
+                Debug.Log($"↩Recovering lane... ({recoveryTimer:F2}s left)");
 
-            if (recoveryTimer <= 0f)
-                recoveringFromObstacle = false;
+                if (recoveryTimer <= 0f)
+                    recoveringFromObstacle = false;
 
-            return;
-        }
+                return;
+            }
+
             StartCoroutine(ProcessCameraImage());
+
             if (!triggerZone.obstacleDetected)
                 speed = Mathf.Min(speed + 0.5f, 20f);
             else
-                speed = 15f;    
-                rb.linearVelocity = transform.forward * speed;
+                speed = 15f;
+
+            rb.linearVelocity = transform.forward * speed; // keep your original API
         }
         else
         {
-            HandleManualControl();
+            HandleManualControlG29();                       // <<< uses G29, not WASD
             rb.linearVelocity = transform.forward * manualSpeed;
             transform.Rotate(0f, manualSteering, 0f);
         }
 
-        // Toggle mode with 'A' key
-        if (Input.GetKeyDown(KeyCode.A))
+        // Keep your keyboard override if you still want it (optional)
+        if (Keyboard.current != null)
         {
-            isAutodrive = !isAutodrive;
-            Debug.Log(isAutodrive ? "Switched to Auto-drive" : "Switched to Manual-drive");
-        }
-        if (Input.GetKey(KeyCode.UpArrow) || Input.GetKey(KeyCode.DownArrow) ||
-        Input.GetKey(KeyCode.LeftArrow) || Input.GetKey(KeyCode.RightArrow))
-    {
-        if (isAutodrive)
-        {
-            isAutodrive = false;
-            Debug.Log("Switched to Manual-drive (due to user input)");
+            if (Keyboard.current.aKey.wasPressedThisFrame)
+            {
+                isAutodrive = !isAutodrive;
+                Debug.Log(isAutodrive ? "Switched to Auto-drive" : "Switched to Manual-drive");
+            }
         }
     }
-    }
 
-    void HandleManualControl()
+    // ----------- NEW: Manual control via G29 axes -----------
+    void HandleManualControlG29()
     {
-        if (Input.GetKey(KeyCode.UpArrow))
-            manualSpeed = Mathf.Min(manualSpeed + 0.8f, 50f);
-        else if (Input.GetKey(KeyCode.DownArrow))
-            manualSpeed = Mathf.Max(manualSpeed - 0.8f, -3f); // allow light reverse
-        else
-            manualSpeed = Mathf.MoveTowards(manualSpeed, 0, 0.2f); // decelerate
+        float steerVal    = steeringAction.ReadValue<float>();   // -1..1 (x)
+        float throttleVal = throttleAction.ReadValue<float>();   // 0..1  (z)
+        float brakeVal    = brakeAction.ReadValue<float>();      // 0..1  (rz)
 
-        if (Input.GetKey(KeyCode.LeftArrow))
-            manualSteering = -0.5f;
-        else if (Input.GetKey(KeyCode.RightArrow))
-            manualSteering = 0.5f;
-        else
-            manualSteering = 0f;
+        // If any are inverted, either fix in the Input Actions with the Invert processor,
+        // or invert here, e.g. throttleVal = 1f - throttleVal;
+
+        // Speed control:
+        float targetSpeed = throttleVal * maxManualSpeed;
+        // accelerate towards targetSpeed
+        manualSpeed = Mathf.MoveTowards(manualSpeed, targetSpeed, accelPerSec * Time.fixedDeltaTime);
+        // apply braking deceleration (stronger)
+        manualSpeed = Mathf.MoveTowards(manualSpeed, 0f, brakeDecelPerSec * brakeVal * Time.fixedDeltaTime);
+
+        // Steering per physics tick
+        manualSteering = steerVal * maxSteerPerFixedStep;
     }
 
     IEnumerator ProcessCameraImage()
@@ -183,13 +215,11 @@ public class WhiteLineFollower : MonoBehaviour
             laneCenter = (leftAvg * leftWeight + rightAvg * rightWeight) / (leftWeight + rightWeight);
         }
 
-
         float error = (laneCenter - centerX) / centerX; // -1 to 1
         float steer = ApplyPID(error);
         float turnStrength = Mathf.Clamp(steer * 1f, -0.5f, 0.5f); // scaled
 
         transform.Rotate(0f, turnStrength, 0f);
-        //Debug.Log($"Steer: {turnStrength:F2} | Error: {error:F2}");
     }
 
     float ApplyPID(float error)
