@@ -38,7 +38,7 @@ public class ObstacleTriggerZone : MonoBehaviour
             else
                 direction = Mathf.Sign(toObstacle.x);
 
-            lastSteer = -direction * 0.5f; // invert for avoidance
+            lastSteer = -direction * 1.5f; // invert for avoidance
             steerCorrection = lastSteer;
             Debug.Log($"Obstacle detected! Steering correction: {steerCorrection}");
         }

@@ -269,7 +269,7 @@ Transform:
   m_GameObject: {fileID: 51194890}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.14419991, y: 1.6858476, z: 2.5}
+  m_LocalPosition: {x: 0.02, y: 1.6858476, z: 2.5}
   m_LocalScale: {x: 0.32875273, y: 0.32875273, z: 0.32875273}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -530,7 +530,7 @@ MonoBehaviour:
   Kp: 0.25
   Ki: 0.006
   Kd: 2
-  speed: 15
+  speed: 10
   triggerZone: {fileID: 1674249737}
 --- !u!4 &397358788 stripped
 Transform:
@@ -565,7 +565,7 @@ Transform:
   m_GameObject: {fileID: 559799084}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0.5378549, z: -0, w: 0.8430375}
-  m_LocalPosition: {x: -1.09, y: 1.6858476, z: 0.58}
+  m_LocalPosition: {x: -1.01, y: 1.6858476, z: 0.58}
   m_LocalScale: {x: 0.32875267, y: 0.32875273, z: 0.32875267}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1224,6 +1224,7 @@ GameObject:
   - component: {fileID: 1674249739}
   - component: {fileID: 1674249738}
   - component: {fileID: 1674249737}
+  - component: {fileID: 1674249740}
   m_Layer: 0
   m_Name: TriggerCollider
   m_TagString: Untagged
@@ -1275,12 +1276,35 @@ Transform:
   m_GameObject: {fileID: 1674249736}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.01, y: 1.15, z: 7.35}
-  m_LocalScale: {x: 3.9067469, y: 1.9242013, z: 9.427059}
+  m_LocalPosition: {x: -0.23, y: 1.09, z: 7.81}
+  m_LocalScale: {x: 3.9067469, y: 1.9242013, z: 10.938217}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 397358788}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!136 &1674249740
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1674249736}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 0
+  serializedVersion: 2
+  m_Radius: 0.76602805
+  m_Height: 8.709048
+  m_Direction: 1
+  m_Center: {x: 0.13824151, y: -0.1536684, z: -0.21665356}
 --- !u!1 &1778485642
 GameObject:
   m_ObjectHideFlags: 0
@@ -1681,7 +1705,7 @@ Transform:
   m_GameObject: {fileID: 2029470399}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: 0.53785145, z: -0, w: 0.8430397}
-  m_LocalPosition: {x: 0.78, y: 1.6858476, z: 0.54}
+  m_LocalPosition: {x: 0.88, y: 1.6858476, z: 0.54}
   m_LocalScale: {x: 0.32875273, y: 0.32875273, z: 0.32875273}
   m_ConstrainProportionsScale: 0
   m_Children: []
