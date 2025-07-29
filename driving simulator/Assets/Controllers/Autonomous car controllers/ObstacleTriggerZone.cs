@@ -34,12 +34,13 @@ public class ObstacleTriggerZone : MonoBehaviour
 
             // If very close to center, bias left
             if (Mathf.Abs(toObstacle.x) < 0.2f)
-                direction = -1f; 
+                direction = -1f;
             else
                 direction = Mathf.Sign(toObstacle.x);
 
             lastSteer = -direction * 0.5f; // invert for avoidance
             steerCorrection = lastSteer;
+            Debug.Log($"Obstacle detected! Steering correction: {steerCorrection}");
         }
     }
 

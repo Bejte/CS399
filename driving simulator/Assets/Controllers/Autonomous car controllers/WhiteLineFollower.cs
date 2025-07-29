@@ -32,8 +32,15 @@ public class WhiteLineFollower : MonoBehaviour
     public ObstacleTriggerZone triggerZone;
     private bool recoveringFromObstacle = false;
     private float recoveryTimer = 0f;
-    private float recoveryDuration = 1.2f; // seconds of gentle return
+    private float recoveryDuration = 1f; // seconds of gentle return
     private float recoverySteer = 0f;
+    private bool obstaclePassed = true; // flag to track if we passed the obstacle
+
+    private float avoidanceTimer = 1f;
+    private float timer = 0f;
+    private float avoidenceSteer = 0f;
+
+    private int flag = 0;
 
     void Awake()
     {
@@ -42,7 +49,7 @@ public class WhiteLineFollower : MonoBehaviour
         steeringAction     = driving.FindAction("Steer",  throwIfNotFound: true);
         throttleAction     = driving.FindAction("Throttle",  throwIfNotFound: true);
         brakeAction        = driving.FindAction("Brake",     throwIfNotFound: true);
-        toggleAutoDriveAction = driving.FindAction("ToggleAD", throwIfNotFound: true); // optional
+        toggleAutoDriveAction = driving.FindAction("ToggleAD", throwIfNotFound: true);
 
         driving.Enable();
     }
@@ -50,6 +57,9 @@ public class WhiteLineFollower : MonoBehaviour
     void Start()
     {
         rb = GetComponent<Rigidbody>();
+
+        rb.centerOfMass = new Vector3(0f, -1f, 0f); // Optional: lower center of mass
+        rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
 
         int width = Screen.width;
         int height = Screen.height;
@@ -70,17 +80,40 @@ public class WhiteLineFollower : MonoBehaviour
 
         if (isAutodrive)
         {
-            if (triggerZone.obstacleDetected)
+            if (triggerZone.obstacleDetected && flag == 0)
             {
-                Debug.Log($"Steering away from obstacle with correction: {triggerZone.steerCorrection}");
-                transform.Rotate(0f, triggerZone.steerCorrection, 0f);
+                //Debug.Log($"Steering away from obstacle with correction: {triggerZone.steerCorrection}");
 
-                recoveringFromObstacle = true;
+                flag = 1; // set flag to avoid repeated corrections
+
+                timer = avoidanceTimer;
                 recoveryTimer = recoveryDuration;
-                recoverySteer = -triggerZone.steerCorrection * 0.5f; // steer slightly opposite after avoidance
+                recoverySteer = -triggerZone.steerCorrection * 0.5f;
+                avoidenceSteer = triggerZone.steerCorrection;
+
+                obstaclePassed = false; // reset obstacle passed flag // invert for avoidance
+
+                return;
+            }
+            else if (!obstaclePassed)
+            {
+                timer -= Time.fixedDeltaTime;
+
+                transform.Rotate(0f, avoidenceSteer, 0f);
+
+                Debug.Log($"Avoiding obstacle... ({timer:F2}s left)");
+
+                if (timer <= 0f)
+                {
+                    obstaclePassed = true; // mark as passed
+                    timer = avoidanceTimer; // reset timer for next avoidance
+                    recoveringFromObstacle = true;
+                }
 
                 speed = Mathf.Max(speed - 2f, 5f);
+
                 return;
+
             }
             else if (recoveringFromObstacle)
             {
@@ -88,10 +121,12 @@ public class WhiteLineFollower : MonoBehaviour
 
                 transform.Rotate(0f, recoverySteer, 0f);
 
-                Debug.Log($"↩Recovering lane... ({recoveryTimer:F2}s left)");
+                Debug.Log($"Recovering lane... ({recoveryTimer:F2}s left)");
 
                 if (recoveryTimer <= 0f)
                     recoveringFromObstacle = false;
+
+                flag = 0;
 
                 return;
             }
@@ -103,16 +138,15 @@ public class WhiteLineFollower : MonoBehaviour
             else
                 speed = 15f;
 
-            rb.linearVelocity = transform.forward * speed; // keep your original API
+            rb.linearVelocity = transform.forward * speed;
         }
         else
         {
-            HandleManualControlG29();                       // <<< uses G29, not WASD
+            HandleManualControlG29();                      
             rb.linearVelocity = transform.forward * manualSpeed;
             transform.Rotate(0f, manualSteering, 0f);
         }
 
-        // Keep your keyboard override if you still want it (optional)
         if (Keyboard.current != null)
         {
             if (Keyboard.current.aKey.wasPressedThisFrame)
@@ -129,9 +163,6 @@ public class WhiteLineFollower : MonoBehaviour
         float steerVal    = steeringAction.ReadValue<float>();   // -1..1 (x)
         float throttleVal = throttleAction.ReadValue<float>();   // 0..1  (z)
         float brakeVal    = brakeAction.ReadValue<float>();      // 0..1  (rz)
-
-        // If any are inverted, either fix in the Input Actions with the Invert processor,
-        // or invert here, e.g. throttleVal = 1f - throttleVal;
 
         // Speed control:
         float targetSpeed = throttleVal * maxManualSpeed;
@@ -167,7 +198,7 @@ public class WhiteLineFollower : MonoBehaviour
                 float intensity = (pixel.r + pixel.g + pixel.b) / 3f;
                 float saturation = Mathf.Max(pixel.r, Mathf.Max(pixel.g, pixel.b)) - Mathf.Min(pixel.r, Mathf.Min(pixel.g, pixel.b));
 
-                if (intensity > 0.5f && saturation < 0.3f) // very light and neutral: white
+                if (intensity > 0.5f && saturation < 0.3f)
                 {
                     if (x < centerX)
                     {
@@ -195,7 +226,7 @@ public class WhiteLineFollower : MonoBehaviour
         float laneCenter;
         if (leftAvg < 0 && rightAvg < 0)
         {
-            Debug.Log("⚠️ No white line detected");
+            Debug.Log("No white line detected");
             yield break;
         }
         else if (leftAvg < 0)
