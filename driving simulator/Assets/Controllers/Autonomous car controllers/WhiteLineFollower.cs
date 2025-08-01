@@ -189,7 +189,7 @@ public class WhiteLineFollower : MonoBehaviour
             Debug.Log(isAutodrive ? "Switched to Auto-drive" : "Switched to Manual-drive (G29)");
         }
 
-        if (isAutodrive && (Input.GetKeyDown(KeyCode.A)) || (Input.GetKeyDown(KeyCode.D)) || (Input.GetKeyDown(KeyCode.LeftArrow)) || (Input.GetKeyDown(KeyCode.RightArrow)))
+        if (isAutodrive && (Input.GetKeyDown(KeyCode.A)))
         {
             isAutodrive = false;
             Debug.Log("Switched to Manual-drive due to steering input");
@@ -322,7 +322,7 @@ public class WhiteLineFollower : MonoBehaviour
         int height = tex.height;
         int centerX = width / 2;
         int scanYStart = 0;
-        int scanYEnd = 100; // scan bottom 100 rows
+        int scanYEnd = 200; // scan bottom 100 rows
 
         int leftSum = 0, rightSum = 0, leftCount = 0, rightCount = 0;
 
@@ -367,11 +367,11 @@ public class WhiteLineFollower : MonoBehaviour
         }
         else if (leftAvg < 0)
         {
-            laneCenter = rightAvg - width / 3f;
+            laneCenter = rightAvg - width / 2f;
         }
         else if (rightAvg < 0)
         {
-            laneCenter = leftAvg + width / 3f;
+            laneCenter = leftAvg + width / 2f;
         }
         else
         {
