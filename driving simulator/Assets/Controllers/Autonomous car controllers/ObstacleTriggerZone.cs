@@ -2,12 +2,14 @@ using UnityEngine;
 
 public class ObstacleTriggerZone : MonoBehaviour
 {
+    //TODO: make the steer correction dynamic; that is it should change according to the obstacle
     public bool obstacleDetected = false;
     public float steerCorrection = 0f;
 
     private float lastSteer = 0f;
     private float steerCooldownTime = 0.2f;
     private float steerTimer = 0f;
+    private float factor = 30f;
 
     private void Update()
     {
@@ -38,7 +40,7 @@ public class ObstacleTriggerZone : MonoBehaviour
             else
                 direction = Mathf.Sign(toObstacle.x);
 
-            lastSteer = -direction * 1.5f; // invert for avoidance
+            lastSteer = -direction * factor; // invert for avoidance
             steerCorrection = lastSteer;
             Debug.Log($"Obstacle detected! Steering correction: {steerCorrection}");
         }
